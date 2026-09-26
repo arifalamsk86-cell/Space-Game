@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>NEBULA STRIKE</title>
+<style>
+  :root{
+    --accent:#3fd0ff;
+    --accent2:#ff5a3c;
+    --panel-bg: rgba(6,10,20,0.55);
+  }
+  html,body{margin:0;padding:0;background:#000;overflow:hidden;height:100%;width:100%;font-family:'Orbitron',ui-sans-serif,system-ui,sans-serif;}
+  @font-face{font-family:'Orbitron';src:local('Arial');}
+  #app{position:relative;width:100vw;height:100vh;}
+  canvas{display:block;}
+
+  .overlay{
+    position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    color:#eaf6ff;text-align:center;z-index:20;
+    background:radial-gradient(ellipse at center, rgba(10,6,20,0.15) 0%, rgba(2,2,8,0.85) 100%);
+    transition:opacity .6s ease;
+  }
+  .hidden{opacity:0;pointer-events:none;}
+
+  #introCanvasWrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:15;background:#050308;}
+  #introImg{
+    max-height:78vh;max-width:70vw;filter:brightness(0.55) contrast(1.05) sepia(0.15);
+    box-shadow:0 0 120px 40px rgba(63,208,255,0.08);
+    transition:filter 2.4s ease, transform 2.4s ease;
+  }
+  #introImg.scan{filter:brightness(1.15) contrast(1.15) sepia(0.05) drop-shadow(0 0 30px rgba(63,208,255,0.6));}
+  #introImg.fadeOut{opacity:0;transform:scale(1.15);transition:opacity 1.1s ease, transform 1.1s ease;}
+  .scanline{
+    position:absolute;left:10%;right:10%;height:3px;background:linear-gradient(90deg, transparent, var(--accent), transparent);
+    box-shadow:0 0 20px 6px rgba(63,208,255,0.7);
+    top:15%;
+    animation:scandown 2.2s ease-in-out;
+  }
+  @keyframes scandown{0%{top:8%;opacity:0;}10%{opacity:1;}90%{opacity:1;}100%{top:92%;opacity:0;}}
+  #introCaption{position:absolute;bottom:6%;font-size:13px;letter-spacing:4px;color:var(--accent);opacity:0.85;text-shadow:0 0 10px rgba(63,208,255,0.8);}
+
+  h1.title{
+    font-size:64px;letter-spacing:10px;margin:0 0 6px 0;
+    background:linear-gradient(180deg,#fff, var(--accent) 60%, #1560a8);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    text-shadow:0 0 40px rgba(63,208,255,0.35);
+    font-weight:700;
+  }
+  .subtitle{font-size:14px;letter-spacing:5px;color:#9fd8ff;opacity:0.75;margin-bottom:36px;}
+  .instructions{display:flex;gap:34px;margin:20px 0 34px 0;font-size:13px;letter-spacing:2px;color:#cfeaff;}
+  .instructions div{display:flex;flex-direction:column;align-items:center;gap:8px;opacity:0.9;}
+  .key{
+    border:1px solid rgba(159,216,255,0.55);border-radius:6px;padding:8px 14px;background:rgba(63,208,255,0.06);
+    box-shadow:0 0 12px rgba(63,208,255,0.15) inset;font-size:15px;
+  }
+  .pulse{animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:0.55;}50%{opacity:1;}}
+  .pressEnter{font-size:16px;letter-spacing:4px;color:#fff;margin-top:10px;}
+
+  #hud{position:absolute;inset:0;z-index:10;pointer-events:none;display:none;font-family:inherit;}
+  .hud-corner{position:absolute;color:#d9f2ff;letter-spacing:2px;}
+  .hud-label{font-size:10px;opacity:0.6;letter-spacing:3px;}
+  .hud-value{font-size:22px;color:var(--accent);text-shadow:0 0 10px rgba(63,208,255,0.6);}
+  #hudTopLeft{top:22px;left:26px;}
+  #hudTopRight{top:22px;right:26px;text-align:right;}
+  #hudBottomLeft{bottom:26px;left:26px;}
+  #hudBottomRight{bottom:26px;right:26px;text-align:right;}
+  .hud-panel{background:var(--panel-bg);border:1px solid rgba(159,216,255,0.18);border-radius:8px;padding:10px 16px;backdrop-filter:blur(2px);}
+  #throttleBarOuter{width:130px;height:8px;border:1px solid rgba(159,216,255,0.4);border-radius:4px;margin-top:6px;overflow:hidden;background:rgba(255,255,255,0.05);}
+  #throttleBarInner{height:100%;width:0%;background:linear-gradient(90deg,#3fd0ff,#ff5a3c);transition:width .1s linear;}
+  #speedGauge{font-size:34px;color:#fff;text-shadow:0 0 16px rgba(63,208,255,0.7);}
+  #multiplierVal{color:var(--accent2);text-shadow:0 0 10px rgba(255,90,60,0.6);}
+
+  #nearMissBanner{
+    position:absolute;top:38%;left:50%;transform:translate(-50%,-50%) scale(0.8);
+    font-size:30px;letter-spacing:6px;color:#ffd23f;text-shadow:0 0 20px rgba(255,210,63,0.8);
+    opacity:0;pointer-events:none;z-index:12;
+  }
+  #nearMissBanner.show{animation:nearmiss .9s ease-out;}
+  @keyframes nearmiss{0%{opacity:0;transform:translate(-50%,-50%) scale(0.6);}25%{opacity:1;transform:translate(-50%,-50%) scale(1.05);}75%{opacity:1;}100%{opacity:0;transform:translate(-50%,-50%) scale(1.2);}}
+
+  #vignette{position:absolute;inset:0;pointer-events:none;z-index:9;box-shadow:inset 0 0 220px 60px rgba(0,0,0,0.65);}
+  #speedFlash{position:absolute;inset:0;pointer-events:none;z-index:8;background:radial-gradient(ellipse at center, transparent 40%, rgba(63,208,255,0.0) 70%);opacity:0;}
+
+  #gameOverPanel{display:none;}
+  #gameOverPanel .stat-row{display:flex;justify-content:space-between;width:280px;font-size:14px;letter-spacing:2px;margin:6px 0;color:#cfeaff;}
+  #gameOverPanel .stat-row span:last-child{color:var(--accent);}
+  #newBest{color:#ffd23f;letter-spacing:3px;font-size:15px;margin-top:10px;text-shadow:0 0 12px rgba(255,210,63,0.7);display:none;}
+  #gameOverTitle{color:var(--accent2);text-shadow:0 0 30px rgba(255,90,60,0.5);}
+
+  #loadingMsg{position:absolute;bottom:14px;right:18px;color:#6fb8de;font-size:11px;letter-spacing:2px;opacity:0.5;z-index:30;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="introCanvasWrap">
+    <img id="introImg" src="YOUR_DRAWING.png" />
+    <div class="scanline" id="scanLine"></div>
+    <div id="introCaption">ANALYZING CRAFT SCHEMATIC</div>
+  </div>
+
+  <canvas id="glcanvas"></canvas>
+
+  <div id="hud">
+    <div id="hudTopLeft" class="hud-corner hud-panel">
+      <div class="hud-label">SCORE</div>
+      <div class="hud-value" id="scoreVal">0</div>
+      <div class="hud-label" style="margin-top:6px;">BEST</div>
+      <div class="hud-value" id="bestVal" style="font-size:16px;">0</div>
+    </div>
+    <div id="hudTopRight" class="hud-corner hud-panel">
+      <div class="hud-label">SURVIVAL TIME</div>
+      <div class="hud-value" id="timeVal">00:00</div>
+      <div class="hud-label" style="margin-top:6px;">MULTIPLIER</div>
+      <div class="hud-value" id="multiplierVal">x1.0</div>
+    </div>
+    <div id="hudBottomLeft" class="hud-corner hud-panel">
+      <div class="hud-label">THROTTLE</div>
+      <div id="throttleBarOuter"><div id="throttleBarInner"></div></div>
+    </div>
+    <div id="hudBottomRight" class="hud-corner hud-panel">
+      <div class="hud-label">SPEED</div>
+      <div id="speedGauge">000</div>
+      <div class="hud-label">UNITS/S</div>
+    </div>
+  </div>
+
+  <div id="nearMissBanner">NEAR MISS</div>
+  <div id="vignette"></div>
+  <div id="speedFlash"></div>
+
+  <div class="overlay" id="startScreen">
+    <h1 class="title">NEBULA STRIKE</h1>
+    <div class="subtitle">DEEP SPACE ARCADE PURSUIT</div>
+    <div class="instructions">
+      <div><span class="key">&#8592; &#8594;</span>STEER</div>
+      <div><span class="key">&#8593;</span>AFTERBURNER</div>
+      <div><span class="key">&#8595;</span>BRAKE</div>
+    </div>
+    <div class="pressEnter pulse">PRESS ENTER TO START</div>
+  </div>
+
+  <div class="overlay" id="gameOverScreen" style="display:none;">
+    <h1 class="title" id="gameOverTitle" style="font-size:46px;">GAME OVER</h1>
+    <div id="gameOverPanel" style="display:flex;flex-direction:column;align-items:center;margin-top:10px;">
+      <div class="stat-row"><span>FINAL SCORE</span><span id="finalScore">0</span></div>
+      <div class="stat-row"><span>SURVIVAL TIME</span><span id="finalTime">00:00</span></div>
+      <div class="stat-row"><span>BEST SCORE</span><span id="finalBest">0</span></div>
+      <div id="newBest">&#9733; NEW PERSONAL BEST &#9733;</div>
+    </div>
+    <div class="pressEnter pulse" style="margin-top:26px;">PRESS R TO RESTART</div>
+  </div>
+
+  <div id="loadingMsg">NEBULA STRIKE ENGINE</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+    (function(){
+"use strict";
+
+/* ============ BASIC SETUP ============ */
+const canvas = document.getElementById('glcanvas');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = false;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x1a0a12, 0.0028);
+
+const camera = new THREE.PerspectiveCamera(62, window.innerWidth/window.innerHeight, 0.5, 3000);
+camera.position.set(0,3.4,9);
+camera.lookAt(0,1,-20);
+
+window.addEventListener('resize', ()=>{
+  camera.aspect = window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+/* ============ LIGHTING ============ */
+const hemi = new THREE.HemisphereLight(0x8fbfff, 0x1a0510, 0.65);
+scene.add(hemi);
+const rim = new THREE.DirectionalLight(0xff7a4d, 1.4);
+rim.position.set(-30,20,-40);
+scene.add(rim);
+const keyLight = new THREE.DirectionalLight(0x9fd8ff, 0.7);
+keyLight.position.set(10,15,20);
+scene.add(keyLight);
+
+/* ============ NEBULA BACKDROP ============ */
+function makeGradientTexture(colorInner, colorOuter){
+  const size = 256;
+  const c = document.createElement('canvas'); c.width=c.height=size;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(size/2,size/2,0,size/2,size/2,size/2);
+  g.addColorStop(0, colorInner);
+  g.addColorStop(1, colorOuter);
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,size,size);
+  return new THREE.CanvasTexture(c);
+}
+const nebulaTexA = makeGradientTexture('rgba(255,140,80,0.55)','rgba(255,90,60,0)');
+const nebulaTexB = makeGradientTexture('rgba(200,60,120,0.4)','rgba(120,20,80,0)');
+const nebulaSprites = [];
+for(let i=0;i<26;i++){
+  const tex = (i%2===0)?nebulaTexA:nebulaTexB;
+  const mat = new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending});
+  const spr = new THREE.Sprite(mat);
+  const depth = -200 - Math.random()*1400;
+  spr.position.set((Math.random()-0.5)*900, (Math.random()-0.3)*400, depth);
+  const s = 220 + Math.random()*480;
+  spr.scale.set(s,s,1);
+  spr.userData.depth = depth;
+  spr.userData.driftSpeed = 0.4 + Math.random()*0.5;
+  scene.add(spr);
+  nebulaSprites.push(spr);
+}
+
+/* ============ STARFIELD ============ */
+const STAR_COUNT = 2200;
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(STAR_COUNT*3);
+for(let i=0;i<STAR_COUNT;i++){
+  starPos[i*3]   = (Math.random()-0.5)*1600;
+  starPos[i*3+1] = (Math.random()-0.5)*900;
+  starPos[i*3+2] = -Math.random()*2000;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos,3));
+const starMat = new THREE.PointsMaterial({color:0xdff3ff, size:1.6, transparent:true, opacity:0.85, depthWrite:false});
+const stars = new THREE.Points(starGeo, starMat);
+scene.add(stars);
+
+// star streak lines (appear at high speed)
+const STREAK_COUNT = 90;
+const streakGeo = new THREE.BufferGeometry();
+const streakPos = new Float32Array(STREAK_COUNT*2*3);
+const streakData = [];
+for(let i=0;i<STREAK_COUNT;i++){
+  const x=(Math.random()-0.5)*700, y=(Math.random()-0.3)*400, z=-Math.random()*1400;
+  streakData.push({x,y,z});
+  streakPos[i*6]=x; streakPos[i*6+1]=y; streakPos[i*6+2]=z;
+  streakPos[i*6+3]=x; streakPos[i*6+4]=y; streakPos[i*6+5]=z-4;
+}
+streakGeo.setAttribute('position', new THREE.BufferAttribute(streakPos,3));
+const streakMat = new THREE.LineBasicMaterial({color:0xbfe8ff, transparent:true, opacity:0.0});
+const streaks = new THREE.LineSegments(streakGeo, streakMat);
+scene.add(streaks);
+
+/* ============ SHIP (built from the car-sketch silhouette) ============ */
+function buildShip(){
+  const group = new THREE.Group();
+
+  const bodyMat = new THREE.MeshStandardMaterial({color:0xb9c4cc, metalness:0.85, roughness:0.28});
+  const darkMat = new THREE.MeshStandardMaterial({color:0x23262b, metalness:0.6, roughness:0.4});
+  const glassMat = new THREE.MeshStandardMaterial({color:0x2b4a5c, metalness:0.2, roughness:0.05, emissive:0x0a2530, emissiveIntensity:0.4});
+  const glowMat = new THREE.MeshBasicMaterial({color:0x3fd0ff});
+
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.55, 4.6, 2,1,2), bodyMat);
+  chassis.position.y = 0.55;
+  group.add(chassis);
+
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.95, 1.5, 4), bodyMat);
+  nose.rotation.x = -Math.PI/2;
+  nose.rotation.z = Math.PI/4;
+  nose.scale.set(1.05,0.55,1);
+  nose.position.set(0,0.55,-2.9);
+  group.add(nose);
+
+  const tail = new THREE.Mesh(new THREE.BoxGeometry(1.6,0.45,1.0), darkMat);
+  tail.position.set(0,0.5,2.7);
+  group.add(tail);
+
+  const cockpit = new THREE.Mesh(new THREE.SphereGeometry(0.55,16,12,0,Math.PI*2,0,Math.PI/1.7), glassMat);
+  cockpit.position.set(0,0.95,-0.4);
+  cockpit.scale.set(1,0.85,1.6);
+  group.add(cockpit);
+
+  [-1,1].forEach(side=>{
+    const podFront = new THREE.Mesh(new THREE.CylinderGeometry(0.55,0.55,0.5,20), darkMat);
+    podFront.rotation.z = Math.PI/2;
+    podFront.position.set(side*1.15, 0.35, -1.7);
+    group.add(podFront);
+
+    const podRear = new THREE.Mesh(new THREE.CylinderGeometry(0.6,0.6,0.55,20), darkMat);
+    podRear.rotation.z = Math.PI/2;
+    podRear.position.set(side*1.2, 0.35, 1.9);
+    group.add(podRear);
+
+    const ringFront = new THREE.Mesh(new THREE.TorusGeometry(0.42,0.05,8,20), glowMat);
+    ringFront.rotation.y = Math.PI/2;
+    ringFront.position.copy(podFront.position); ringFront.position.x += side*0.26;
+    group.add(ringFront);
+
+    const ringRear = new THREE.Mesh(new THREE.TorusGeometry(0.46,0.06,8,20), glowMat);
+    ringRear.rotation.y = Math.PI/2;
+    ringRear.position.copy(podRear.position); ringRear.position.x += side*0.28;
+    group.add(ringRear);
+
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08,0.4,2.6), darkMat);
+    fin.position.set(side*1.05,0.28,0.2);
+    group.add(fin);
+  });
+
+  const engineGeo = new THREE.ConeGeometry(0.4,1.4,12,1,true);
+  const engineMat = new THREE.MeshBasicMaterial({color:0x4fd8ff, transparent:true, opacity:0.85, blending:THREE.AdditiveBlending, side:THREE.DoubleSide});
+  const engineFlame = new THREE.Mesh(engineGeo, engineMat);
+  engineFlame.rotation.x = Math.PI/2;
+  engineFlame.position.set(0,0.55,3.5);
+  group.add(engineFlame);
+
+  const engineLight = new THREE.PointLight(0x3fd0ff, 2.2, 12);
+  engineLight.position.set(0,0.55,3.2);
+  group.add(engineLight);
+
+  group.userData.engineFlame = engineFlame;
+  group.userData.engineLight = engineLight;
+  group.userData.cockpit = cockpit;
+
+  return group;
+}
+const ship = buildShip();
+ship.position.set(0,0,0);
+scene.add(ship);
+
+/* ============ OBSTACLE POOLS ============ */
+function makeAsteroidMesh(){
+  const geo = new THREE.IcosahedronGeometry(1, 1);
+  const pos = geo.attributes.position;
+  for(let i=0;i<pos.count;i++){
+    const n = 0.25 + Math.random()*0.35;
+    pos.setXYZ(i, pos.getX(i)*(1+ (Math.random()-0.5)*n), pos.getY(i)*(1+ (Math.random()-0.5)*n), pos.getZ(i)*(1+ (Math.random()-0.5)*n));
+  }
+  geo.computeVertexNormals();
+  const mat = new THREE.MeshStandardMaterial({color:0x8a7466, roughness:0.95, metalness:0.05, flatShading:true});
+  return new THREE.Mesh(geo, mat);
+}
+function makeRocketMesh(){
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({color:0x5a2020, metalness:0.7, roughness:0.35});
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22,0.22,1.6,10), bodyMat);
+  body.rotation.x = Math.PI/2;
+  g.add(body);
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.22,0.5,10), bodyMat);
+  nose.rotation.x = Math.PI/2;
+  nose.position.z = -1.05;
+  g.add(nose);
+  const finMat = new THREE.MeshStandardMaterial({color:0x2a1010, metalness:0.5, roughness:0.5});
+  for(let i=0;i<3;i++){
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.05,0.4,0.4), finMat);
+    fin.position.set(0,0,0.7);
+    fin.rotateZ((Math.PI*2/3)*i);
+    fin.translateY(0.25);
+    g.add(fin);
+  }
+  const glowMat = new THREE.MeshBasicMaterial({color:0xff6a2f});
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(0.14,8,8), glowMat);
+  glow.position.z = 0.9;
+  g.add(glow);
+  const light = new THREE.PointLight(0xff6a2f, 1.5, 6);
+  light.position.z = 0.9;
+  g.add(light);
+  return g;
+}
+
+const MAX_OBSTACLES = 40;
+const obstaclePool = [];
+for(let i=0;i<MAX_OBSTACLES;i++){
+  const type = i%2===0 ? 'asteroid':'rocket';
+  const mesh = type==='asteroid' ? makeAsteroidMesh() : makeRocketMesh();
+  mesh.visible = false;
+  scene.add(mesh);
+  obstaclePool.push({
+    mesh, type, active:false, x:0,y:0,z:0, vx:0, radius:1, rotSpeed:new THREE.Vector3(),
+    scaleTarget:1, nearMissAwarded:false
+  });
+}
+function spawnObstacle(type, corridorX, corridorY){
+  const slot = obstaclePool.find(o=>!o.active && o.type===type);
+  if(!slot) return;
+  slot.active = true;
+  slot.mesh.visible = true;
+  slot.nearMissAwarded = false;
+  slot.x = (Math.random()*2-1)*corridorX;
+  slot.y = 0.5 + Math.random()*corridorY;
+  slot.z = -520 - Math.random()*260;
+  slot.vx = (Math.random()-0.5)*3.5;
+  slot.scaleTarget = type==='asteroid' ? (0.7+Math.random()*2.2) : (0.8+Math.random()*0.6);
+  slot.radius = type==='asteroid' ? slot.scaleTarget*0.9 : slot.scaleTarget*0.5;
+  slot.rotSpeed.set((Math.random()-0.5)*2,(Math.random()-0.5)*2,(Math.random()-0.5)*2);
+  slot.mesh.scale.setScalar(0.05);
+  slot.mesh.position.set(slot.x, slot.y, slot.z);
+}
+function recycleObstacle(o){
+  o.active=false;
+  o.mesh.visible=false;
+}
+
+/* ============ GAME STATE ============ */
+const STATE = {INTRO:'intro', START:'start', PLAYING:'playing', GAMEOVER:'gameover'};
+let state = STATE.INTRO;
+
+let best = 0;
+try{ best = parseFloat(localStorage.getItem('nebulaStrikeBest')||'0') || 0; }catch(e){ best = 0; }
+
+let shipX=0, shipY=0, velX=0, roll=0;
+let throttle=0.55;
+let forwardSpeed=0;
+const MIN_SPEED=26, MAX_SPEED=112, BASE_SPEED_ACCEL=48;
+let survivalTime=0;
+let score=0;
+let multiplier=1.0;
+let nearMissFlashTimer=0;
+let spawnTimer=0;
+let spawnInterval=1.15;
+let difficultyT=0;
+const CORRIDOR_X = 6.2, CORRIDOR_Y = 3.4;
+
+const keys = {left:false,right:false,up:false,down:false};
+
+function resetGame(){
+  shipX=0; shipY=0; velX=0; roll=0;
+  throttle=0.55; forwardSpeed=MIN_SPEED+ (MAX_SPEED-MIN_SPEED)*0.4;
+  survivalTime=0; score=0; multiplier=1.0;
+  spawnTimer=0; spawnInterval=1.15; difficultyT=0;
+  obstaclePool.forEach(recycleObstacle);
+  ship.position.set(0,0,0);
+  ship.rotation.set(0,0,0);
+}
+
+/* ============ AUDIO (procedural, WebAudio) ============ */
+let audioCtx=null, engineOsc=null, engineGain=null, noiseNode=null, ambientGain=null;
+function initAudio(){
+  if(audioCtx) return;
+  try{
+    audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    engineOsc = audioCtx.createOscillator();
+    engineOsc.type='sawtooth';
+    engineOsc.frequency.value=60;
+    engineGain = audioCtx.createGain();
+    engineGain.gain.value=0.02;
+    const engineFilter = audioCtx.createBiquadFilter();
+    engineFilter.type='lowpass'; engineFilter.frequency.value=400;
+    engineOsc.connect(engineFilter); engineFilter.connect(engineGain); engineGain.connect(audioCtx.destination);
+    engineOsc.start();
+
+    const pad = audioCtx.createOscillator();
+    pad.type='sine'; pad.frequency.value=110;
+    ambientGain = audioCtx.createGain(); ambientGain.gain.value=0.015;
+    pad.connect(ambientGain); ambientGain.connect(audioCtx.destination);
+    pad.start();
+    const pad2 = audioCtx.createOscillator();
+    pad2.type='sine'; pad2.frequency.value=164.8;
+    const pad2gain = audioCtx.createGain(); pad2gain.gain.value=0.01;
+    pad2.connect(pad2gain); pad2gain.connect(audioCtx.destination);
+    pad2.start();
+  }catch(e){ console.warn('Audio init failed', e); }
+}
+function playBurst({freqStart=400, freqEnd=80, dur=0.35, type='sawtooth', vol=0.3}={}){
+  if(!audioCtx) return;
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type=type;
+  o.frequency.setValueAtTime(freqStart, audioCtx.currentTime);
+  o.frequency.exponentialRampToValueAtTime(Math.max(freqEnd,20), audioCtx.currentTime+dur);
+  g.gain.setValueAtTime(vol, audioCtx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime+dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime+dur+0.05);
+}
+function playNoiseBurst(dur=0.5, vol=0.4){
+  if(!audioCtx) return;
+  const bufferSize = audioCtx.sampleRate*dur;
+  const buffer = audioCtx.createBuffer(1,bufferSize,audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for(let i=0;i<bufferSize;i++){ data[i] = (Math.random()*2-1)*(1-i/bufferSize); }
+  const src = audioCtx.createBufferSource();
+  src.buffer = buffer;
+  const g = audioCtx.createGain();
+  g.gain.value = vol;
+  src.connect(g); g.connect(audioCtx.destination);
+  src.start();
+}
+
+/* ============ UI ELEMENTS ============ */
+const introImg = document.getElementById('introImg');
+const introWrap = document.getElementById('introCanvasWrap');
+const startScreen = document.getElementById('startScreen');
+const gameOverScreen = document.getElementById('gameOverScreen');
+const hud = document.getElementById('hud');
+const scoreVal = document.getElementById('scoreVal');
+const bestVal = document.getElementById('bestVal');
+const timeVal = document.getElementById('timeVal');
+const multiplierVal = document.getElementById('multiplierVal');
+const throttleBarInner = document.getElementById('throttleBarInner');
+const speedGauge = document.getElementById('speedGauge');
+const nearMissBanner = document.getElementById('nearMissBanner');
+const finalScore = document.getElementById('finalScore');
+const finalTime = document.getElementById('finalTime');
+const finalBest = document.getElementById('finalBest');
+const newBest = document.getElementById('newBest');
+const speedFlash = document.getElementById('speedFlash');
+
+bestVal.textContent = Math.floor(best);
+
+function fmtTime(t){
+  const m = Math.floor(t/60), s = Math.floor(t%60);
+  return String(m).padStart(2,'0')+':'+String(s).padStart(2,'0');
+}
+
+/* ============ INTRO SEQUENCE ============ */
+function runIntro(){
+  setTimeout(()=>{ introImg.classList.add('scan'); }, 300);
+  setTimeout(()=>{
+    introImg.classList.add('fadeOut');
+    document.getElementById('scanLine').style.opacity='0';
+  }, 2600);
+  setTimeout(()=>{
+    introWrap.style.display='none';
+    state = STATE.START;
+    startScreen.style.display='flex';
+  }, 3700);
+}
+runIntro();
+
+/* ============ INPUT ============ */
+window.addEventListener('keydown', (e)=>{
+  if(e.code==='ArrowLeft') keys.left=true;
+  if(e.code==='ArrowRight') keys.right=true;
+  if(e.code==='ArrowUp') keys.up=true;
+  if(e.code==='ArrowDown') keys.down=true;
+  if(['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.code)) e.preventDefault();
+
+  if(e.code==='Enter' && state===STATE.START){
+    initAudio();
+    startScreen.style.display='none';
+    hud.style.display='block';
+    resetGame();
+    state = STATE.PLAYING;
+  }
+  if((e.code==='KeyR') && state===STATE.GAMEOVER){
+    gameOverScreen.style.display='none';
+    hud.style.display='block';
+    resetGame();
+    state = STATE.PLAYING;
+  }
+});
+window.addEventListener('keyup', (e)=>{
+  if(e.code==='ArrowLeft') keys.left=false;
+  if(e.code==='ArrowRight') keys.right=false;
+  if(e.code==='ArrowUp') keys.up=false;
+  if(e.code==='ArrowDown') keys.down=false;
+});
+
+/* ============ GAME OVER ============ */
+function triggerGameOver(){
+  state = STATE.GAMEOVER;
+  hud.style.display='none';
+  playNoiseBurst(0.6,0.5);
+  playBurst({freqStart:220, freqEnd:30, dur:0.8, type:'square', vol:0.35});
+
+  let isNewBest = false;
+  if(score > best){ best = score; isNewBest = true;
+    try{ localStorage.setItem('nebulaStrikeBest', String(Math.floor(best))); }catch(e){}
+  }
+  finalScore.textContent = Math.floor(score);
+  finalTime.textContent = fmtTime(survivalTime);
+  finalBest.textContent = Math.floor(best);
+  newBest.style.display = isNewBest ? 'block':'none';
+  bestVal.textContent = Math.floor(best);
+  setTimeout(()=>{ gameOverScreen.style.display='flex'; }, 900);
+}
+
+/* ============ MAIN LOOP ============ */
+let lastT = performance.now();
+function animate(now){
+  requestAnimationFrame(animate);
+  let dt = (now-lastT)/1000;
+  lastT = now;
+  dt = Math.min(dt, 0.05);
+
+  nebulaSprites.forEach(s=>{ s.material.rotation += dt*0.02; });
+  const starPosAttr = stars.geometry.attributes.position;
+
+  if(state===STATE.PLAYING){
+    updateGameplay(dt);
+  } else if(state===STATE.START || state===STATE.INTRO){
+    ship.position.y = Math.sin(now*0.001)*0.15;
+    ship.rotation.z = Math.sin(now*0.0007)*0.03;
+    ship.position.z = 0;
+    camera.position.set(0,2.6,7.5);
+    camera.lookAt(ship.position.x, ship.position.y+0.6, ship.position.z-5);
+    ship.userData.engineFlame.scale.set(1,1+Math.sin(now*0.01)*0.15,1);
+  }
+
+  renderer.render(scene, camera);
+}
+
+function updateGameplay(dt){
+  survivalTime += dt;
+  difficultyT = Math.min(survivalTime/90, 1);
+
+  const steerInput = (keys.left?-1:0) + (keys.right?1:0);
+  const targetVelX = steerInput * 5.2;
+  velX += (targetVelX-velX)*Math.min(dt*4.5,1);
+  shipX += velX*dt;
+  shipX = THREE.MathUtils.clamp(shipX, -CORRIDOR_X, CORRIDOR_X);
+  if(Math.abs(shipX)>=CORRIDOR_X) velX *= 0.4;
+
+  const targetRoll = -steerInput*0.55 - velX*0.03;
+  roll += (targetRoll-roll)*Math.min(dt*5,1);
+
+  if(keys.up) throttle = Math.min(1, throttle + dt*0.9);
+  else if(keys.down) throttle = Math.max(0, throttle - dt*0.9);
+  else throttle += (0.55-throttle)*dt*0.6;
+
+  const targetSpeed = MIN_SPEED + throttle*(MAX_SPEED-MIN_SPEED);
+  forwardSpeed += (targetSpeed-forwardSpeed)*Math.min(dt*1.8,1);
+
+  shipY = Math.sin(performance.now()*0.0012)*0.25;
+
+  ship.position.x = shipX;
+  ship.position.y = shipY;
+  ship.rotation.z = roll;
+  ship.rotation.y = -steerInput*0.12;
+  ship.rotation.x = (throttle-0.55)*0.12;
+
+  const flameScale = 0.6 + throttle*1.6;
+  ship.userData.engineFlame.scale.set(0.6+throttle*0.5, flameScale, 0.6+throttle*0.5);
+  ship.userData.engineLight.intensity = 1.2 + throttle*3.2;
+
+  const speedT = (forwardSpeed-MIN_SPEED)/(MAX_SPEED-MIN_SPEED);
+  const camTargetX = shipX*0.6;
+  const camTargetY = 2.6 + shipY*0.4 - throttle*0.25;
+  const camTargetZ = 8.4 - speedT*1.6;
+  camera.position.x += (camTargetX-camera.position.x)*Math.min(dt*3.2,1);
+  camera.position.y += (camTargetY-camera.position.y)*Math.min(dt*3.2,1);
+  camera.position.z += (camTargetZ-camera.position.z)*Math.min(dt*2.5,1);
+
+  const shakeMag = speedT*0.06;
+  camera.position.x += (Math.random()-0.5)*shakeMag;
+  camera.position.y += (Math.random()-0.5)*shakeMag;
+
+  const lookTarget = new THREE.Vector3(shipX*0.8, shipY+0.7, -14 - speedT*8);
+  camera.lookAt(lookTarget);
+  camera.rotation.z += roll*0.18;
+
+  camera.fov = 62 + speedT*14;
+  camera.updateProjectionMatrix();
+
+  const posAttr = stars.geometry.attributes.position;
+  for(let i=0;i<STAR_COUNT;i++){
+    let z = posAttr.getZ(i) + forwardSpeed*dt*2.2;
+    if(z>20){ z -= 2000; posAttr.setX(i,(Math.random()-0.5)*1600); posAttr.setY(i,(Math.random()-0.5)*900); }
+    posAttr.setZ(i,z);
+  }
+  posAttr.needsUpdate = true;
+  streakMat.opacity = Math.max(0, (speedT-0.35))*0.9;
+  const streakP = streaks.geometry.attributes.position;
+  for(let i=0;i<STREAK_COUNT;i++){
+    let z = streakP.getZ(i*2) + forwardSpeed*dt*3.2;
+    if(z>20){ z -= 1400; const nx=(Math.random()-0.5)*700, ny=(Math.random()-0.3)*400;
+      streakP.setXYZ(i*2, nx, ny, z); streakP.setXYZ(i*2+1, nx, ny, z-(4+speedT*10));
+    } else {
+      const x=streakP.getX(i*2), y=streakP.getY(i*2);
+      streakP.setXYZ(i*2, x,y,z); streakP.setXYZ(i*2+1, x,y, z-(4+speedT*10));
+    }
+  }
+  streakP.needsUpdate = true;
+
+  nebulaSprites.forEach(s=>{ s.position.z += forwardSpeed*dt*0.35; if(s.position.z>50){ s.position.z -= 1600; } });
+
+  spawnTimer += dt;
+  const curInterval = Math.max(0.32, spawnInterval - difficultyT*0.75);
+  if(spawnTimer >= curInterval){
+    spawnTimer = 0;
+    const roll2 = Math.random();
+    const rocketChance = 0.28 + difficultyT*0.3;
+    spawnObstacle(roll2<rocketChance?'rocket':'asteroid', CORRIDOR_X*1.15, CORRIDOR_Y*1.6);
+    if(difficultyT>0.5 && Math.random()<difficultyT*0.4){
+      spawnObstacle(Math.random()<0.5?'rocket':'asteroid', CORRIDOR_X*1.15, CORRIDOR_Y*1.6);
+    }
+  }
+
+  const shipRadius = 1.1;
+  const nearMissDist = 2.6;
+  for(const o of obstaclePool){
+    if(!o.active) continue;
+    o.z += forwardSpeed*dt*(1+difficultyT*0.35);
+    o.x += o.vx*dt;
+    o.mesh.position.set(o.x,o.y,o.z);
+    o.mesh.rotation.x += o.rotSpeed.x*dt;
+    o.mesh.rotation.y += o.rotSpeed.y*dt;
+    o.mesh.rotation.z += o.rotSpeed.z*dt;
+    const s = Math.min(o.scaleTarget, o.mesh.scale.x + dt*o.scaleTarget*1.2);
+    o.mesh.scale.setScalar(s);
+
+    if(o.z > 40){ recycleObstacle(o); continue; }
+
+    if(o.z > -12 && o.z < 8){
+      const dx = o.x-shipX, dy=o.y-shipY, dz=o.z-0;
+      const dist = Math.sqrt(dx*dx+dy*dy+dz*dz*0.4);
+      const collideR = shipRadius+o.radius;
+      if(dist < collideR){
+        triggerGameOver();
+        return;
+      } else if(!o.nearMissAwarded && dist < collideR+nearMissDist && o.z>-4 && o.z<6){
+        o.nearMissAwarded = true;
+        awardNearMiss();
+      }
+    }
+  }
+
+  multiplier = 1.0 + speedT*0.8 + difficultyT*0.6 + Math.min(nearMissFlashTimer>0?0.4:0,0.4);
+  score += (8 + forwardSpeed*0.35) * multiplier * dt;
+
+  if(nearMissFlashTimer>0){ nearMissFlashTimer -= dt; }
+
+  scoreVal.textContent = Math.floor(score);
+  timeVal.textContent = fmtTime(survivalTime);
+  multiplierVal.textContent = 'x'+multiplier.toFixed(1);
+  throttleBarInner.style.width = (throttle*100).toFixed(0)+'%';
+  speedGauge.textContent = String(Math.floor(forwardSpeed)).padStart(3,'0');
+  speedFlash.style.opacity = (speedT*0.35).toFixed(2);
+
+  if(engineOsc){
+    engineOsc.frequency.setTargetAtTime(55 + forwardSpeed*1.4 + throttle*40, audioCtx.currentTime, 0.08);
+    engineGain.gain.setTargetAtTime(0.02 + throttle*0.05, audioCtx.currentTime, 0.1);
+  }
+}
+
+function awardNearMiss(){
+  score += 180;
+  nearMissFlashTimer = 1.0;
+  nearMissBanner.classList.remove('show');
+  void nearMissBanner.offsetWidth;
+  nearMissBanner.classList.add('show');
+  playBurst({freqStart:900, freqEnd:1400, dur:0.18, type:'triangle', vol:0.25});
+}
+
+requestAnimationFrame(animate);
+})();
+</script>
+</body>
+</html>
